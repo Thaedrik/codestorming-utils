@@ -17,6 +17,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.NavigableSet;
 import java.util.TreeSet;
 
 /**
@@ -434,14 +435,38 @@ public final class FragmentedInterval implements Serializable {
 		return intersection;
 	}
 
-	// TODO union interval
 	public FragmentedInterval union(Interval interval) {
-		return new FragmentedInterval();
+		final IntervalMapKey key = new IntervalMapKey(interval);
+		IntervalMapKey before = intervals.floor(key);
+		IntervalMapKey after = intervals.ceiling(key);
+		if (before == null) {
+			before = intervals.first();
+		}
+		if (after == null) {
+			after = intervals.last();
+		}
+		final FragmentedIntervalBuilder builder = new FragmentedIntervalBuilder(new FragmentedInterval(interval));
+		// Add inferior intervals
+		for (IntervalMapKey mapKey : intervals.headSet(before, false)) {
+			builder.addInterval(mapKey.interval);
+		}
+		// Add intersecting intervals
+		for (IntervalMapKey mapKey : intervals.subSet(before, true, after, true)) {
+			builder.addInterval(mapKey.interval);
+		}
+		// Add superior intervals
+		for (IntervalMapKey mapKey : intervals.tailSet(after, false)) {
+			builder.addInterval(mapKey.interval);
+		}
+		return builder.create();
 	}
 
-	// TODO union fragmented interval
 	public FragmentedInterval union(FragmentedInterval interval) {
-		return new FragmentedInterval();
+		FragmentedInterval fi = copyOf(this);
+		for (IntervalMapKey mapKey : interval.intervals) {
+			fi = fi.union(mapKey.interval);
+		}
+		return fi;
 	}
 
 	/**
@@ -467,7 +492,7 @@ public final class FragmentedInterval implements Serializable {
 		}
 		FragmentedInterval newOne = copyOf(this);
 		if (before != null && after != null) {
-			final List<IntervalMapKey> subset = new ArrayList<IntervalMapKey>(intervals.subSet(before, true, after,
+			final List<IntervalMapKey> subset = new ArrayList<>(intervals.subSet(before, true, after,
 					true));
 			newOne.removeAll(subset);
 			for (final IntervalMapKey it : subset) {
@@ -479,9 +504,12 @@ public final class FragmentedInterval implements Serializable {
 		return newOne;
 	}
 
-	// TODO exclusive union fragmented interval
 	public FragmentedInterval exclusiveUnion(FragmentedInterval interval) {
-		return new FragmentedInterval();
+		FragmentedInterval current = copyOf(this);
+		for (IntervalMapKey intervalMapKey : interval.intervals) {
+			current = current.exclusiveUnion(intervalMapKey.interval);
+		}
+		return current;
 	}
 
 	static FragmentedInterval internalExclusiveUnion(Interval interval1, Interval interval2) {
@@ -521,6 +549,28 @@ public final class FragmentedInterval implements Serializable {
 			cachedString = builder.toString();
 		}
 		return cachedString;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (obj == this) {
+			return true;
+		} // else
+		if (!(obj instanceof FragmentedInterval)) {
+			return false;
+		} // else
+		FragmentedInterval o = (FragmentedInterval) obj;
+		if (o.intervals.size() != intervals.size()) {
+			return false;
+		} // else
+		Iterator<IntervalMapKey> iter = intervals.iterator();
+		Iterator<IntervalMapKey> oIter = o.intervals.iterator();
+		while (iter.hasNext()) {
+			if (!iter.next().interval.equals(oIter.next().interval)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	static abstract class AIntervalMapKey<T extends AIntervalMapKey<?>> implements Comparable<T> {

@@ -253,9 +253,6 @@ public class Interval implements Serializable {
 		if (obj == this) {
 			return true;
 		}
-		if (obj == null) {
-			return false;
-		}
 		if (!(obj instanceof Interval)) {
 			return false;
 		}
